@@ -1,0 +1,4 @@
+*.out
+volt
+.zig-cache/
+zig-out/
