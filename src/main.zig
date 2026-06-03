@@ -21,10 +21,9 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(arr);
 
     var terminal: Term = undefined;
-    terminal.initTerm();
+    try terminal.initTerm();
 
-    terminal.enableRawMode();
-    defer terminal.disableRawMode();
+    try terminal.enableRawMode();
 
     for (arr) |file| {
         try stdout_file_writer.interface.print("{s}\n", .{file});
@@ -32,4 +31,6 @@ pub fn main(init: std.process.Init) !void {
     }
 
     try stdout_file_writer.interface.flush();
+
+    try terminal.disableRawMode();
 }
