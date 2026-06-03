@@ -9,17 +9,22 @@ width: i64 = 0,
 height: i64 = 0,
 
 /// returns current settings of terminal
-pub fn initTerm(term: *Term) void {
-    _ = std.os.linux.tcgetattr(std.os.linux.STDIN_FILENO, &term.cur_state);
-    term.cur_state = term.prev_state;
+pub fn initTerm(self: *Term) void {
+    _ = std.os.linux.tcgetattr(std.os.linux.STDIN_FILENO, &self.prev_state);
+    self.cur_state = self.prev_state;
 }
 
 /// sets terminal to raw mode
-pub fn enableRawMode(term: *Term) void {
-    term.cur_state.lflag.ECHO = false;
-    _ = std.os.linux.tcsetattr(std.os.linux.STDIN_FILENO, std.posix.TCSA.NOW, &term.cur_state);
+pub fn enableRawMode(self: *Term) void {
+    self.cur_state.lflag.ECHO = false;
+    self.cur_state.lflag.ICANON = false;
+    self.cur_state.lflag.IEXTEN = false;
+
+    self.cur_state.iflag.IXON = false;
+
+    _ = std.os.linux.tcsetattr(std.os.linux.STDIN_FILENO, std.posix.TCSA.FLUSH, &self.cur_state);
 }
 
-pub fn disableRawMode(term: *Term) void {
-    _ = std.os.linux.tcsetattr(std.os.linux.STDIN_FILENO, std.posix.TCSA.NOW, &term.prev_state);
+pub fn disableRawMode(self: *Term) void {
+    _ = std.os.linux.tcsetattr(std.os.linux.STDIN_FILENO, std.posix.TCSA.FLUSH, &self.prev_state);
 }

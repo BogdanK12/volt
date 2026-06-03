@@ -21,10 +21,10 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(arr);
 
     var terminal: Term = undefined;
-    Term.initTerm(&terminal);
+    terminal.initTerm();
 
-    Term.enableRawMode(&terminal);
-    defer Term.disableRawMode(&terminal);
+    terminal.enableRawMode();
+    defer terminal.disableRawMode();
 
     for (arr) |file| {
         try stdout_file_writer.interface.print("{s}\n", .{file});
