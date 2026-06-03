@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// counts files in directory
 pub fn nfilesInDir(
     io: std.Io,
     dir: std.Io.Dir,
@@ -22,6 +23,7 @@ pub fn nfilesInDir(
     return filesNumber;
 }
 
+/// creates array of strings with names of files in directory
 pub fn dirToArray(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -50,6 +52,7 @@ pub fn dirToArray(
     return arr;
 }
 
+/// prints content of directory
 pub fn printDir(init: std.process.Init, dir: std.Io.Dir, writer: *std.Io.File.Writer) !void {
     const io = init.io;
     const write = &writer.interface;

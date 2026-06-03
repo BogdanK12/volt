@@ -2,4 +2,4 @@
 const std = @import("std");
 pub const filesys = @import("filesys.zig");
 pub const state = @import("state.zig");
-pub const term = @import("term.zig")
+// pub const Term = @import("term.zig");
