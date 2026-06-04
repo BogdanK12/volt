@@ -1,6 +1,18 @@
 const std = @import("std");
 const volt = @import("volt");
+
+const filesys = @import("filesys.zig");
+
 const Term = @import("term.zig");
+const State = @import("state.zig");
+
+const Hotkeys = enum(u8) {
+    cursorUp = 'k',
+    cursorDown = 'j',
+    goToParent = 'h',
+    goInCursored = 'l',
+    _,
+};
 
 pub fn changeTerminalBuffer(stdout: *std.Io.File.Writer) !void {
     try stdout.interface.writeAll("\x1b[?1049h");
@@ -29,13 +41,16 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     var cwd: std.Io.Dir = try std.Io.Dir.cwd().openDir(io, ".", .{ .iterate = true });
 
+    var state: State = undefined;
+    try state.init(io, init.gpa, cwd);
+
     var stdout_buffer: [1024]u8 = undefined;
     var stdout: std.Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
 
     var stdin_buf: [1024]u8 = undefined;
     var stdin_reader: std.Io.File.Reader = .init(.stdin(), io, &stdin_buf);
 
-    var arr = try volt.filesys.dirToArrayEntries(init.io, init.gpa, cwd);
+    var arr = try filesys.dirToArrayEntries(init.io, init.gpa, cwd);
     defer init.gpa.free(arr);
 
     var terminal: Term = undefined;
@@ -47,22 +62,32 @@ pub fn main(init: std.process.Init) !void {
     try stdout.flush();
     try terminal.enableRawMode();
 
+    // TODO: fix memory leaks (we allocate std.Io.Dir.Entry.name in arr)
     while (stdin_reader.interface.takeByte()) |byte| {
+        const action: Hotkeys = @enumFromInt(byte);
         try clearScreen(&stdout);
-        if (byte == 'k') {
-            cwd = try cwd.openDir(io, "..", .{ .iterate = true });
-            // for (arr) |file| {
-            //     init.gpa.free(file);
-            // }
-            init.gpa.free(arr);
-            arr = try volt.filesys.dirToArrayEntries(io, init.gpa, cwd);
-            try stdout.interface.writeAll("\x1b[2J\x1b[H");
+        switch (action) {
+            .goToParent => {
+                cwd = try cwd.openDir(io, "..", .{ .iterate = true });
+                for (arr) |file| {
+                    init.gpa.free(file.name);
+                }
+                init.gpa.free(arr);
+                arr = try filesys.dirToArrayEntries(io, init.gpa, cwd);
+                try stdout.interface.writeAll("\x1b[2J\x1b[H");
+            },
+            .cursorDown => state.selectionDown(),
+            .cursorUp => state.selectionUp(),
+            .goInCursored => {},
+            _ => {},
         }
-        for (arr) |file| {
-            switch (file.kind) {
-                .directory => try stdout.interface.print("{s}/\n", .{file.name}),
-                else => try stdout.interface.print("{s}\n", .{file.name}),
+        for (0..arr.len) |i| {
+            if (i == state.cursor_pos) try stdout.interface.writeAll("\x1B[7m");
+            switch (arr[i].kind) {
+                .directory => try stdout.interface.print("{s}/\n", .{arr[i].name}),
+                else => try stdout.interface.print("{s}\n", .{arr[i].name}),
             }
+            if (i == state.cursor_pos) try stdout.interface.writeAll("\x1B[0m");
         }
         try stdout.interface.flush();
     } else |err| {
