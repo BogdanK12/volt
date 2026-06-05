@@ -39,7 +39,7 @@ pub fn main(init: std.process.Init) !void {
     // }
 
     const io = init.io;
-    var cwd: std.Io.Dir = try std.Io.Dir.cwd().openDir(io, ".", .{ .iterate = true });
+    const cwd: std.Io.Dir = try std.Io.Dir.cwd().openDir(io, ".", .{ .iterate = true });
 
     var state: State = undefined;
     try state.init(io, init.gpa, cwd);
@@ -49,9 +49,6 @@ pub fn main(init: std.process.Init) !void {
 
     var stdin_buf: [1024]u8 = undefined;
     var stdin_reader: std.Io.File.Reader = .init(.stdin(), io, &stdin_buf);
-
-    var arr = try filesys.dirToArrayEntries(init.io, init.gpa, cwd);
-    defer init.gpa.free(arr);
 
     var terminal: Term = undefined;
     try terminal.initTerm();
@@ -65,28 +62,30 @@ pub fn main(init: std.process.Init) !void {
     // TODO: fix memory leaks (we allocate std.Io.Dir.Entry.name in arr)
     while (stdin_reader.interface.takeByte()) |byte| {
         const action: Hotkeys = @enumFromInt(byte);
+
         try clearScreen(&stdout);
+
         switch (action) {
             .goToParent => {
-                cwd = try cwd.openDir(io, "..", .{ .iterate = true });
-                for (arr) |file| {
-                    init.gpa.free(file.name);
-                }
-                init.gpa.free(arr);
-                arr = try filesys.dirToArrayEntries(io, init.gpa, cwd);
+                try state.goToParent(io, init.gpa);
                 try stdout.interface.writeAll("\x1b[2J\x1b[H");
             },
             .cursorDown => state.selectionDown(),
             .cursorUp => state.selectionUp(),
-            .goInCursored => {},
+            .goInCursored => {
+                try state.goInCursored(io, init.gpa);
+                try stdout.interface.writeAll("\x1b[2J\x1b[H");
+            },
             _ => {},
         }
-        for (0..arr.len) |i| {
+        for (0..state.cwd_content.len) |i| {
             if (i == state.cursor_pos) try stdout.interface.writeAll("\x1B[7m");
-            switch (arr[i].kind) {
-                .directory => try stdout.interface.print("{s}/\n", .{arr[i].name}),
-                else => try stdout.interface.print("{s}\n", .{arr[i].name}),
+
+            switch (state.cwd_content[i].kind) {
+                .directory => try stdout.interface.print("{s}/\n", .{state.cwd_content[i].name}),
+                else => try stdout.interface.print("{s}\n", .{state.cwd_content[i].name}),
             }
+
             if (i == state.cursor_pos) try stdout.interface.writeAll("\x1B[0m");
         }
         try stdout.interface.flush();

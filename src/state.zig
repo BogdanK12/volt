@@ -33,4 +33,30 @@ pub fn selectionDown(self: *State) void {
     }
 }
 
-// pub fn goToParent(self: *State, init: std.process.Init) !void {}
+pub fn goToParent(self: *State, io: std.Io, allocator: std.mem.Allocator) !void {
+    for (self.cwd_content) |file| {
+        allocator.free(file.name);
+    }
+    allocator.free(self.cwd_content);
+
+    self.cwd = try self.cwd.openDir(io, "..", .{ .iterate = true });
+    self.cwd_content = try filesys.dirToArrayEntries(io, allocator, self.cwd);
+    self.cursor_pos = 0;
+}
+
+pub fn goInCursored(self: *State, io: std.Io, allocator: std.mem.Allocator) !void {
+    if (self.cwd_content[self.cursor_pos].kind != .directory) return;
+
+    const path = try allocator.dupe(u8, self.cwd_content[self.cursor_pos].name);
+
+    for (self.cwd_content) |file| {
+        allocator.free(file.name);
+    }
+    allocator.free(self.cwd_content);
+
+    self.cwd = try self.cwd.openDir(io, path, .{ .iterate = true });
+    self.cwd_content = try filesys.dirToArrayEntries(io, allocator, self.cwd);
+    self.cursor_pos = 0;
+
+    allocator.free(path);
+}
