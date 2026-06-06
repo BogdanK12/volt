@@ -73,7 +73,11 @@ pub fn main(init: std.process.Init) !void {
             .cursorDown => state.selectionDown(),
             .cursorUp => state.selectionUp(),
             .goInCursored => {
-                try state.goInCursored(io, init.gpa);
+                state.goInCursored(io, init.gpa) catch |err| switch (err) {
+                    State.Error.NotADirectory => {},
+                    std.Io.Dir.OpenError.AccessDenied => {},
+                    else => return err,
+                };
                 try stdout.interface.writeAll("\x1b[2J\x1b[H");
             },
             _ => {},

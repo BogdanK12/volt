@@ -5,6 +5,10 @@ const State = @This();
 
 const Dir = std.Io.Dir;
 
+pub const Error = error{
+    NotADirectory,
+};
+
 parent_content: []Dir.Entry,
 cwd_content: []Dir.Entry,
 cwd: Dir,
@@ -34,27 +38,39 @@ pub fn selectionDown(self: *State) void {
 }
 
 pub fn goToParent(self: *State, io: std.Io, allocator: std.mem.Allocator) !void {
+    const temp = self.cwd;
+    self.cwd = try self.cwd.openDir(io, "..", .{ .iterate = true });
+    temp.close(io);
+
     for (self.cwd_content) |file| {
         allocator.free(file.name);
     }
     allocator.free(self.cwd_content);
 
-    self.cwd = try self.cwd.openDir(io, "..", .{ .iterate = true });
-    self.cwd_content = try filesys.dirToArrayEntries(io, allocator, self.cwd);
+    self.cwd_content = self.parent_content;
+    self.parent_content = try filesys.dirToArrayEntries(io, allocator, try self.cwd.openDir(io, "..", .{ .iterate = true }));
+    std.debug.print(
+        "cwd={*} parent={*}\n",
+        .{ self.cwd_content.ptr, self.parent_content.ptr },
+    );
     self.cursor_pos = 0;
 }
 
 pub fn goInCursored(self: *State, io: std.Io, allocator: std.mem.Allocator) !void {
-    if (self.cwd_content[self.cursor_pos].kind != .directory) return;
+    if (self.cwd_content[self.cursor_pos].kind != .directory) return Error.NotADirectory;
 
     const path = try allocator.dupe(u8, self.cwd_content[self.cursor_pos].name);
 
-    for (self.cwd_content) |file| {
+    const temp = self.cwd;
+    self.cwd = try self.cwd.openDir(io, path, .{ .iterate = true });
+
+    for (self.parent_content) |file| {
         allocator.free(file.name);
     }
-    allocator.free(self.cwd_content);
+    allocator.free(self.parent_content);
 
-    self.cwd = try self.cwd.openDir(io, path, .{ .iterate = true });
+    temp.close(io);
+    self.parent_content = self.cwd_content;
     self.cwd_content = try filesys.dirToArrayEntries(io, allocator, self.cwd);
     self.cursor_pos = 0;
 
